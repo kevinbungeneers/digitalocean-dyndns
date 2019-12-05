@@ -1,0 +1,9 @@
+[Unit]
+Description=Update Digital Ocean DNS Timer
+
+[Timer]
+WakeSystem=false
+OnCalendar=*-*-* 1:00:00
+
+[Install]
+WantedBy=timers.target

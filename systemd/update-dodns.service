@@ -1,0 +1,13 @@
+[Unit]
+Description=Update Digital Ocean DNS Service
+Wants=network-online.target
+After=network-online.target
+AssertFileIsExecutable=/usr/local/bin/update-dodns
+
+[Service]
+Type=simple
+Nice=19
+IOSchedulingClass=2
+IOSchedulingPriority=7
+EnvironmentFile=/etc/default/update-dodns
+ExecStart=/usr/local/bin/update-dodns --accesstoken=$DO_ACCESSTOKEN --domain=$DO_DOMAIN --hostname=$DO_HOSTNAME
