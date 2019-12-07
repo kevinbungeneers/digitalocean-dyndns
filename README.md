@@ -17,9 +17,10 @@ $ mv update-dodns.sh /usr/local/bin/update-dodns
 ### Create environmentfile
 ```
 $ cat <<EOT >> /etc/default/update-dodns
-DO_ACCESSTOKEN="datapikeytho"
-DO_DOMAIN="example.com"
-DO_HOSTNAME="dathostname"
+DO_ACCESSTOKEN=datapikeytho
+DO_DOMAIN=example.com
+DO_HOSTNAME=dathostname
+XDG_CONFIG_HOME=/root
 
 EOT
 ```
