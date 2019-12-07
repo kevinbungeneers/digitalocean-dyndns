@@ -27,4 +27,7 @@ EOT
 ### Install the systemd service + timer
 ```
 $ ( cd /etc/systemd/system/; curl -O https://raw.githubusercontent.com/kevinbungeneers/digitalocean-dyndns/master/systemd/update-dodns.service && curl -O https://raw.githubusercontent.com/kevinbungeneers/digitalocean-dyndns/master/systemd/update-dodns.timer)
+$ systemctl enable update-dodns.timer && systemctl start update-dodns.timer
 ```
+
+By default the timer gets triggered at 01:00 every night. Change the `OnCalendar` entry in `/etc/systemd/system/update-dodns.timer` if you want a more/less frequent interval.
