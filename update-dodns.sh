@@ -66,7 +66,7 @@ fi
 CURRENT_IP=$(dig +short myip.opendns.com @resolver1.opendns.com)
 
 if [ "$CURRENT_IP" == "$DO_HOSTNAME_IP" ]; then
-    echo "Record data for ${HOSTNAME}.${DOMAIN} stiil contains ${CURRENT_IP}. No changes have been made."
+    echo "Record data for ${HOSTNAME}.${DOMAIN} still contains ${CURRENT_IP}. No changes have been made."
 else
     doctl --access-token ${ACCESSTOKEN} compute domain records update ${DOMAIN} --record-name ${HOSTNAME} --record-data ${CURRENT_IP} --record-id ${DO_HOSTNAME_ID} --output json > /tmp/digitalocean-dns.json
 
