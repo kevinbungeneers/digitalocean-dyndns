@@ -19,7 +19,9 @@ $ mv update-dodns.sh /usr/local/bin/update-dodns
 $ cat <<EOT >> /etc/default/update-dodns
 DO_ACCESSTOKEN=datapikeytho
 DO_DOMAIN=example.com
-DO_HOSTNAME=dathostname
+DO_HOSTNAMES=dathostname
+# Or if you want to update multiple hostnames:
+# DO_HOSTNAMES=dathostname;datotherhostname
 XDG_CONFIG_HOME=/root
 
 EOT
