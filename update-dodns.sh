@@ -1,81 +1,97 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
+#
+# NAME
+#    update-dodns - Update your DigitalOcean DNS records.
+#
+# USAGE
+#    update-dodns --domain="example.com" --hostnames="subdomain1;subdomain2"
+#                 --accesstoken="exampleAccessTokenc9090edc900663d750fee6030bd4"
+#
+# BUGS
+#    https://github.com/kevinbungeneers/digitalocean-dyndns/issues
+#
+################################################################################
 
-HELPTXT=$(cat <<"EOF"
-Usage:
-    ./update-dodns.sh [--help] --domain=<domain_name> --hostname=<hostname>
-                        --accesstoken=<do_api_key>
+function usage() {
+    while IFS= read -r line || [[ -n "$line" ]]
+    do
+        case "$line" in
+            '#!'*)
+                ;;
+            ''|'##'*|[!#]*)
+                exit "${1:-0}"
+                ;;
+            *)
+                printf '%s\n' "${line:2}" >&2
+                ;;
+        esac
+    done < "$0"
+}
 
-Update a Digital Ocean DNS record with your external IP address.
-OPTIONS
-    --help
-        Show this output
-    --domain=<domain_name>
-        The name of the domain where the A record lives that will be updated.
-    --hostname=<hostname>
-        The name of the hostname you wish to update.
-    --accesstoken=<do_api_key>
-        Provide your docker API key here.
-EOF
-)
-
-SHOW_HELP=0
-DOMAIN=""
-HOSTNAME=""
-ACCESSTOKEN=""
-
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --help)
-            SHOW_HELP=1
+# Process parameters
+domain=""
+accesstoken=""
+declare -a hostnames
+while [[ -n "${1:-}" ]]
+do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
             ;;
         --domain=*)
-            DOMAIN="${1#*=}"
+            domain="${1#*=}"
             ;;
-        --hostname=*)
-            HOSTNAME="${1#*=}"
+        --hostnames=*)
+            IFS=';' read -a hostnames <<< "${1#*=}"
             ;;
         --accesstoken=*)
-            ACCESSTOKEN="${1#*=}"
+            accesstoken="${1#*=}"
             ;;
-        *)
-            SHOW_HELP=1
     esac
     shift
 done
 
-if [ $SHOW_HELP -eq 1 ]; then
-    echo "$HELPTXT"
-    exit 0
+# Load all records from a given domain
+records=$(doctl --access-token "${accesstoken}" compute domain records list "${domain}" -o json)
+
+if [ "$?" -eq 1 ]; then
+    echo "Error while loading records for \"${domain}\": $(jq ".errors | .[] | .detail" <<< $records)"
+    exit $?
 fi
 
-doctl --access-token ${ACCESSTOKEN} compute domain records list ${DOMAIN} -o json > /tmp/digitalocean-dns.json
+# Get our current external IP
+current_ip=$(dig +short myip.opendns.com @resolver1.opendns.com)
 
-if [ $? -eq 1 ]; then
-    printf "Error while loading records for \"${DOMAIN}\": %s" cat /tmp/digitalocean-dns.json | jq ".errors | .[] | .detail"
-    exit 1
-fi
+# Update given records with external IP
+for hostname in "${hostnames[@]}"
+do
+    hostname_id=$(echo $records | jq ".[] | select(.name==\"${hostname}\") | .id")
+    hostname_ip=$(echo $records | jq -r ".[] | select(.name==\"${hostname}\") | .data")
 
-DO_HOSTNAME_ID=$(cat /tmp/digitalocean-dns.json | jq ".[] | select(.name==\"${HOSTNAME}\") | .id")
-DO_HOSTNAME_IP=$(cat /tmp/digitalocean-dns.json | jq ".[] | select(.name==\"${HOSTNAME}\") | .data" | sed -e 's/^"//' -e 's/"$//')
-
-if [ -z "$DO_HOSTNAME_ID" ]; then
-    echo "No record data found for ${HOSTNAME}.${DOMAIN}"
-    exit 1
-fi
-
-CURRENT_IP=$(dig +short myip.opendns.com @resolver1.opendns.com)
-
-if [ "$CURRENT_IP" == "$DO_HOSTNAME_IP" ]; then
-    echo "Record data for ${HOSTNAME}.${DOMAIN} still contains ${CURRENT_IP}. No changes have been made."
-else
-    doctl --access-token ${ACCESSTOKEN} compute domain records update ${DOMAIN} --record-name ${HOSTNAME} --record-data ${CURRENT_IP} --record-id ${DO_HOSTNAME_ID} --output json > /tmp/digitalocean-dns.json
-
-    if [ $? -eq 1 ]; then
-        printf "Failed to update record for \"${HOSTNAME}.${DOMAIN}\": %s" cat /tmp/digitalocean-dns.json | jq ".errors | .[] | .detail"
-        exit 1
-    else
-        echo "Record data for \"${HOSTNAME}.${DOMAIN}\" has been updated with ${CURRENT_IP}."
+    if [ -z "$hostname_id" ]; then
+        echo "No record data found for \"${hostname}\", skipping"
+        continue
     fi
-fi
 
-exit 0
+    if [ "${current_ip}" == "${hostname_ip}" ]; then
+        echo "Record data for \"${hostname}\" already contains \"${current_ip}\". Nothing to do."
+    else
+        result=$(doctl --access-token ${accesstoken} \
+            compute domain records update ${domain} \
+            --record-name ${hostname} \
+            --record-data ${current_ip} \
+            --record-id ${hostname_id} \
+            --output json
+        )
+
+        if [ "$?" -gt 0 ]; then
+            echo "Failed to update record data for \"${hostname}\" with \"${current_ip}\": $(jq ".errors | .[] | .detail" <<< $records)"
+            exit_code=$?
+        else
+            echo "Record for \"${hostname}\" has been updated with \"${current_ip}\""
+        fi
+    fi
+done
+
+exit "${exit_code-0}"
